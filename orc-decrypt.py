@@ -26,6 +26,7 @@ pkcs7_data_oid =        bytes.fromhex('06092a864886f70d010701301d')
 unstream_cmd = (Path(__file__).parent / 'unstream').resolve()
 openssl_cmd = 'openssl'
 
+
 def decode_oid(oid):
     if not (oid[0] == 6 and oid[1] == len(oid) - 2):
         raise ValueError(f'Not an OID: {oid}')
@@ -139,7 +140,8 @@ def decrypt_archive_python(archive_path: Path, private_key: Path, output_file: P
         f.seek(content_offset + 2)
         logging.debug('Writing to %s', output_file)
         # Remove output file if it exists so that unstream does not fail
-        output_file.unlink(missing_ok=True)
+        if output_file.exists():
+            output_file.unlink()
 
         try:
             p = subprocess.Popen([unstream_cmd, '-', quote(str(output_file))],
