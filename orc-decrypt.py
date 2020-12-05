@@ -179,7 +179,8 @@ def decrypt_archive_python(archive_path: Path, private_key: Path, output_file: P
 def decrypt_archive_openssl(archive_path: Path, private_key: Path, output_file: Path):
     unstream_cmd = (Path(__file__).parent / 'unstream').resolve()
     # Remove output file if it exists so that unstream does not fail
-    output_file.unlink(missing_ok=True)
+    if output_file.exists():
+        output_file.unlink()
     p = subprocess.run(f'{openssl_cmd} cms -decrypt -in {quote(str(archive_path))} -inform DER -inkey {quote(str(private_key))} -binary '
                        f'| {str(unstream_cmd)} - {quote(str(output_file))}',
                        shell=True)
@@ -189,7 +190,8 @@ def decrypt_archive_openssl(archive_path: Path, private_key: Path, output_file: 
         logging.error('Decrypting archive %s with openssl and unstream failed. '
                       'Return code of shell process was %d and decrypted output size was: %d',
                       archive_path, p.returncode, output_file.stat().st_size)
-        output_file.unlink(missing_ok=True)
+        if output_file.exists():
+            output_file.unlink()
         return False
 
 
