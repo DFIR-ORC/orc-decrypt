@@ -46,7 +46,7 @@ $ python orc-decrypt.py -k key.pem ./encrypted ./decrypted
 ```
 
 ## License
-Le contenu de ce dépôt est disonible sous licence LGPL2.1+, tel qu'indiqué [ici](LICENSE.txt)
+Le contenu de ce dépôt est disponible sous licence LGPL2.1+, tel qu'indiqué [ici](LICENSE.txt)
 
 Le nom DFIR ORC et le logo associé appartiennent à l'ANSSI, aucun usage n'est permis sans autorisation expresse.
 

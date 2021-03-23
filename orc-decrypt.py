@@ -195,17 +195,25 @@ def decrypt_archive_openssl(archive_path: Path, private_key: Path, output_file: 
         return False
 
 
-def process_archive(archive_path: Path, private_key: Path, output_file: Path):
+def process_archive(archive_path: Path, private_key: Path, output_file: Path, method: str):
     if output_file.exists() and not args.force:
         logging.warning('Output file %s already exists, skipping (use --force to overwrite)', output_file)
         return False
 
     if archive_path.stat().st_size >= 2**32 / 2 - 1:
-        logging.debug('Processing archive %s with Python', archive_path)
-        res = decrypt_archive_python(archive_path, private_key, output_file)
+        if method == 'auto' or method == 'python':
+            logging.debug('Processing archive %s with Python', archive_path)
+            res = decrypt_archive_python(archive_path, private_key, output_file)
+        else:
+            logging.warning('Processing archive %s with OpenSSL will likely fail because it\'s too big !', archive_path)
+            res = decrypt_archive_openssl(archive_path, private_key, output_file)
     else:
-        logging.debug('Processing archive %s with OpenSSL', archive_path)
-        res = decrypt_archive_openssl(archive_path, private_key, output_file)
+        if method == 'auto' or method == 'openssl':
+            logging.debug('Processing archive %s with OpenSSL', archive_path)
+            res = decrypt_archive_openssl(archive_path, private_key, output_file)
+        else:
+            logging.debug('Processing archive %s with Python', archive_path)
+            res = decrypt_archive_python(archive_path, private_key, output_file)
     if res:
         logging.info('Successfully decrypted %s into %s', archive_path, output_file)
     else:
@@ -230,6 +238,12 @@ def parse_args():
                         help="Force overwrite of existing files in output directory.", )
     parser.add_argument("-j", "--jobs", metavar='N', type=int,
                         help="Number of jobs to process in parallel. Defaults to Python implementation of multiprocessing.Pool")
+    parser.add_argument("-m", "--method", metavar='mode', type=str, choices=['auto', 'openssl', 'python'],
+                        help="Method to use to decrypt archives. Default is 'auto' meaning the script will use"
+                             "openssl for archives smaller than 2GB and pure-python implementation for larger ones."
+                             "Warning: forcing the usage of openssl for archives larger than 2GB will likely prevent "
+                             "the script from decrypting these archives as openssl cannot handle them in its current "
+                             "version (1.1.1f)")
 
     if not unstream_cmd.exists():
         parser.error(f'Missing tool "unstream" in path {Path(__file__).parent.resolve()}, '
@@ -268,7 +282,8 @@ if __name__ == "__main__":
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     with multiprocessing.Pool(args.jobs) as pool:
         results = pool.starmap(process_archive,
-                               [(f, Path(args.key), (Path(args.output_dir) / f.stem).resolve()) for f in archives_list],)
+                               [(f, Path(args.key), (Path(args.output_dir) / f.stem).resolve(), args.method)
+                                for f in archives_list],)
 
     end = datetime.now()
     logging.info('Finished processing %d archives in %s. %d failed, %d succeeded',
