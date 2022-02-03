@@ -17,21 +17,24 @@ orc-decrypt.py is the wrapper around both decryption implementations and for the
 
 ## Usage
 ```
-usage: orc-decrypt.py [-h] -k file [--log-level level] [--log-file file] [-f] [-j N] input_dir output_dir
+usage: orc-decrypt.py [-h] -k file [--log-level level] [--log-file file] [-f] [-j N] [-m mode] input_dir output_dir
 
 Wrapper around the two possible methods of decrypting ORC archives
 
 positional arguments:
-  input_dir            Input directory where the encrypted archives are stored
-  output_dir           Output directory where to store the decrypted archives
+  input_dir             Input directory where the encrypted archives are stored
+  output_dir            Output directory where to store the decrypted archives
 
 optional arguments:
-  -h, --help           show this help message and exit
-  -k file, --key file  PEM-encoded unencrypted key file (default: None)
-  --log-level level    Print log messages of this level and higher, possible choices: CRITICAL, ERROR, WARNING, INFO, DEBUG (default: INFO)
-  --log-file file      Log file to store DEBUG level messages (default: None)
-  -f, --force          Force overwrite of existing files in output directory. (default: False)
-  -j N, --jobs N       Number of jobs to process in parallel. Defaults to Python implementation of multiprocessing.Pool (default: None)
+  -h, --help            show this help message and exit
+  -k file, --key file   PEM-encoded unencrypted key file (default: None)
+  --log-level level     Print log messages of this level and higher, possible choices: CRITICAL, ERROR, WARNING, INFO, DEBUG (default: INFO)
+  --log-file file       Log file to store DEBUG level messages (default: None)
+  -f, --force           Force overwrite of existing files in output directory. (default: False)
+  -j N, --jobs N        Number of jobs to process in parallel. Defaults to Python implementation of multiprocessing.Pool (default: None)
+  -m mode, --method mode
+                        Method to use to decrypt archives. Default is 'auto' meaning the script will use openssl for archives smaller than 2GB and pure-python implementation for larger ones. Warning: forcing the usage of openssl for
+                        archives larger than 2GB will likely prevent the script from decrypting these archives as openssl cannot handle them in its current version (1.1.1f) (default: auto)
 ```
 
 ## Examples

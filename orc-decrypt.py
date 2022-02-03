@@ -239,8 +239,9 @@ def parse_args():
     parser.add_argument("-j", "--jobs", metavar='N', type=int,
                         help="Number of jobs to process in parallel. Defaults to Python implementation of multiprocessing.Pool")
     parser.add_argument("-m", "--method", metavar='mode', type=str, choices=['auto', 'openssl', 'python'],
-                        help="Method to use to decrypt archives. Default is 'auto' meaning the script will use"
-                             "openssl for archives smaller than 2GB and pure-python implementation for larger ones."
+                        default='auto',
+                        help="Method to use to decrypt archives. Default is 'auto' meaning the script will use "
+                             "openssl for archives smaller than 2GB and pure-python implementation for larger ones. "
                              "Warning: forcing the usage of openssl for archives larger than 2GB will likely prevent "
                              "the script from decrypting these archives as openssl cannot handle them in its current "
                              "version (1.1.1f)")
