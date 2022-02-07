@@ -19,6 +19,12 @@
 #include <errno.h>
 #include <stdint.h>
 
+#if defined(_MSC_VER)
+#include <sys/types.h>
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
+#endif
+
 //#define DEBUG
 
 static const uint32_t VERSION_JRNL = 2;
@@ -164,7 +170,7 @@ int main( int argc, char **argv )
 	{
 		f_in = stdin;
 	} else {
-		f_in = fopen( argv[1], "r" );
+		f_in = fopen( argv[1], "rb" );
 	}
 	if ( !f_in )
 	{
@@ -172,7 +178,7 @@ int main( int argc, char **argv )
 		exit(EXIT_FAILURE);
 	}
 
-	FILE *f_out = fopen( argv[2], "wx" );
+	FILE *f_out = fopen( argv[2], "wbx" );
 	if ( !f_out )
 	{
 		perror( "Unstream: open out" );
