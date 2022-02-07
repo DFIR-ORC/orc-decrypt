@@ -19,6 +19,12 @@
 #include <errno.h>
 #include <stdint.h>
 
+#if defined(_MSC_VER)
+#include <sys/types.h>
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
+#endif
+
 //#define DEBUG
 
 static const uint32_t VERSION_JRNL = 2;
