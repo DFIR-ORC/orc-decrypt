@@ -13,7 +13,7 @@ orc-decrypt.py is the wrapper around both decryption implementations and for the
 - Python 3.6+
 - [PyCryptodome](https://www.pycryptodome.org/en/latest/)
 - OpenSSL command line tool in the PATH
-- GCC for compiling `unstream` in the same directory as `orc-decrypt.py`
+- Compiled `unstream` from this repository in the same directory as `orc-decrypt.py`. Use either the `Makefile` (make) or `CMakeLists.txt` (CMake).
 
 ## Usage
 ```
@@ -46,6 +46,15 @@ $ cat key.pem
 [...]
 -----END PRIVATE KEY-----
 $ python orc-decrypt.py -k key.pem ./encrypted ./decrypted
+```
+
+## CMake build instructions (Windows/Linux)
+```
+cd orc-decrypt
+mkdir build
+cd build
+cmake ..
+cmake --build . --config Release
 ```
 
 ## License
