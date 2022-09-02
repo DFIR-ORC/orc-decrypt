@@ -239,8 +239,8 @@ def decrypt_archive_openssl(archive_path: Path, private_key: Path, output_file: 
         return False
 
 
-def process_archive(archive_path: Path, private_key: Path, output_file: Path, method: str):
-    if output_file.exists() and not args.force:
+def process_archive(archive_path: Path, private_key: Path, output_file: Path, method: str, force: bool):
+    if output_file.exists() and not force:
         logging.warning('Output file %s already exists, skipping (use --force to overwrite)', output_file)
         return False
 
@@ -327,7 +327,7 @@ if __name__ == "__main__":
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     with multiprocessing.Pool(args.jobs) as pool:
         results = pool.starmap(process_archive,
-                               [(f, Path(args.key), (Path(args.output_dir) / f.stem).resolve(), args.method)
+                               [(f, Path(args.key), (Path(args.output_dir) / f.stem).resolve(), args.method, args.force)
                                 for f in archives_list],)
 
     end = datetime.now()
