@@ -16,7 +16,6 @@ import struct
 import re
 from datetime import datetime
 from pathlib import Path
-from shlex import quote
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP, AES
 
@@ -143,9 +142,15 @@ def decrypt_archive_python(archive_path: Path, private_key: Path, output_file: P
         if output_file.exists():
             output_file.unlink()
 
+        # quick and dirty fixe
+        # write a temporary file to avoid error: Unstream cannot read data...
+        tmp_output = f'{str(output_file)}_tmp'
+        tmp_file = open(tmp_output, "ab")
+        if not tmp_file:
+            logging.error(f"Can't open tmp file {tmp_output}")
+            return False
+
         try:
-            p = subprocess.Popen([unstream_cmd, '-', quote(str(output_file))],
-                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             t, c = struct.unpack("BB", f.read(2))
             prev = bytes()
             while t == 0x04:
@@ -154,7 +159,7 @@ def decrypt_archive_python(archive_path: Path, private_key: Path, output_file: P
                 else:
                     oslen = int.from_bytes(f.read(c & 0x7f), byteorder='big')
                 # Revisit to deal with incomplete read
-                p.stdin.write(prev)
+                tmp_file.write(prev)
                 prev = enc_alg.decrypt(f.read(oslen))
                 h = f.read(2)
                 if not h:
@@ -164,32 +169,71 @@ def decrypt_archive_python(archive_path: Path, private_key: Path, output_file: P
             # We need to remove possible padding from last decrypted chunk
             if len(prev) > 1 and len(prev) > prev[-1]:
                 prev = prev[:-prev[-1]]
-                p.stdin.write(prev)
+                tmp_file.write(prev)
         except BrokenPipeError:
             pass
+
+        #close file before use with unstream
+        tmp_file.close()
+
+        # remove shlex.quote, normally there is no command injection with this form
+        p = subprocess.Popen([unstream_cmd, tmp_output, str(output_file)],
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = p.communicate()
         if out:
             logging.info(out)
         if err:
             logging.error(err)
+        
+        Path(tmp_output).unlink()
 
     return True
 
 
 def decrypt_archive_openssl(archive_path: Path, private_key: Path, output_file: Path):
-    unstream_cmd = (Path(__file__).parent / 'unstream').resolve()
     # Remove output file if it exists so that unstream does not fail
     if output_file.exists():
         output_file.unlink()
-    p = subprocess.run(f'{openssl_cmd} cms -decrypt -in {quote(str(archive_path))} -inform DER -inkey {quote(str(private_key))} -binary '
-                       f'| {str(unstream_cmd)} - {quote(str(output_file))}',
-                       shell=True)
-    if p.returncode == 0 and output_file.exists() and output_file.stat().st_size > 0:
+
+    # popen style without shell=True, normally no more command injection
+    # and compatible Windows without quote (shlex.quote doesn't work with Windows)
+    # but the form with PIPE to chain both processes like below doesn't work
+    
+    # openssl_process = subprocess.Popen([openssl_cmd, "cms", "-decrypt", "-in",
+    #                        str(archive_path), "-inform", "DER", "-inkey",
+    #                        str(private_key), "-binary"], stdout=subprocess.PIPE)
+    #
+    # unstream_process = subprocess.Popen([unstream_cmd, "-",
+    #                              str(output_file)], stdin=openssl_process.stdout)
+    # openssl_process.stdout.close()
+    # unstream_process.communicate() -> unstream error cannot read data
+
+    # Quick and Dirty tmp file to chain openssl and unstream
+    tmp_output = f'{str(output_file)}_tmp'
+    openssl_process = subprocess.Popen([openssl_cmd, "cms", "-decrypt", "-in",
+                    str(archive_path), "-inform", "DER", "-inkey",
+                    str(private_key), "-binary", "-out", tmp_output])
+    out, err = openssl_process.communicate()
+    if out:
+        logging.info(out)
+    if err:
+        logging.error(err)
+
+    unstream_process = subprocess.Popen([unstream_cmd, tmp_output, str(output_file)])
+
+    out, err = unstream_process.communicate()
+    if out:
+        logging.info(out)
+    if err:
+        logging.error(err)
+
+    if unstream_process.returncode == 0 and output_file.exists() and output_file.stat().st_size > 0:
+        Path(tmp_output).unlink()
         return True
     else:
         logging.error('Decrypting archive %s with openssl and unstream failed. '
                       'Return code of shell process was %d and decrypted output size was: %d',
-                      archive_path, p.returncode, output_file.stat().st_size)
+                      archive_path, unstream_process.returncode, output_file.stat().st_size)
         if output_file.exists():
             output_file.unlink()
         return False
