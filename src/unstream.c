@@ -23,6 +23,9 @@
 #include <sys/types.h>
 #include <BaseTsd.h>
 typedef SSIZE_T ssize_t;
+
+#include <fcntl.h>
+#include <io.h>
 #endif
 
 //#define DEBUG
@@ -168,6 +171,9 @@ int main( int argc, char **argv )
 	FILE *f_in = NULL;
 	if ( !strcmp( argv[1], "-" ) )
 	{
+#if defined(_MSC_VER)
+        _setmode(_fileno(stdin), _O_BINARY);
+#endif
 		f_in = stdin;
 	} else {
 		f_in = fopen( argv[1], "rb" );
