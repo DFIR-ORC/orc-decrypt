@@ -8,19 +8,18 @@ from setuptools import setup
 from setuptools.command.install import install
 
 here = Path(__file__).parent.resolve()
+build_dir = here / "build"
+build_type = "Release"
 
 
 class MyInstall(install):
     def run(self):
-        old_dir = Path.cwd()
-        os.chdir("build")
-        if subprocess.call(["cmake", ".."]) != 0:
+        if subprocess.call(["cmake", "-S", ".", "-B", build_dir.resolve()]) != 0:
             sys.exit(-1)
-        if subprocess.call(["cmake", "--build", "."]) != 0:
+        if subprocess.call(["cmake", "--build", build_dir.resolve(), "--config", build_type]) != 0:
             sys.exit(-1)
         # Try to install but ignore errors if permission is denied
-        subprocess.call(["cmake", "--install", "."])
-        os.chdir(old_dir)
+        subprocess.call(["cmake", "--install", build_dir.resolve(), "--config", build_type])
         install.run(self)
 
 
