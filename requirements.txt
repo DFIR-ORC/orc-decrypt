@@ -1,1 +1,1 @@
-pycryptodome>=3.9
+cryptography>=0.6
