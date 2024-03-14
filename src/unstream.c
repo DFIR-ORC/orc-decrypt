@@ -172,7 +172,12 @@ int main( int argc, char **argv )
 	if ( !strcmp( argv[1], "-" ) )
 	{
 #if defined(_MSC_VER)
-        _setmode(_fileno(stdin), _O_BINARY);
+		int result;
+		result = _setmode( _fileno( stdin ), _O_BINARY );
+		if( result == -1 ) {
+			perror( "Cannot set stdin in binary mode" );
+			exit(EXIT_FAILURE);
+		}
 #endif
 		f_in = stdin;
 	} else {
