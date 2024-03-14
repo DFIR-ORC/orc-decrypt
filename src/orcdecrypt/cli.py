@@ -11,18 +11,21 @@
 import argparse
 import logging
 import multiprocessing
-import sys
 from datetime import datetime
 from pathlib import Path
 from shutil import which
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Sequence
 
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
-from anssi_orcdecrypt import decrypt_archive
-from anssi_orcdecrypt.utils import ContextFilter
+from .decrypt import decrypt_archive
+from .utils import ContextFilter
 
 
-def parse_args():
+def get_parser():
     def is_pkey(f: str) -> Path:
         try:
             load_pem_private_key(open(f, "rb").read(), password=None)
@@ -114,41 +117,52 @@ def parse_args():
         help='Path to the "unstream" binary. If not set, unstream must be in the PATH.',
     )
 
-    return parser.parse_args()
+    return parser
 
 
-def main():
-    args = parse_args()
-    begin = datetime.now()
-
+def setup_logging(
+    log_file: Optional[str] = None,
+    log_level: Optional[str] = None,
+) -> None:
+    """Do setup logging to redirect to log_file at DEBUG level."""
+    if log_level is None:
+        log_level = "INFO"
     # Setup logging
-    log_level = getattr(logging, args.log_level)
-    if args.log_file:
-        # Send everything (DEBUG included) in the log file and keep only log_level messages on the console
+    if log_file:
+        # Send everything (DEBUG included) in the log file
+        # and keep only log_level messages on the console
         logging.basicConfig(
             level=logging.DEBUG,
-            format="[%(asctime)s] %(name)-12s - %(levelname)-8s - [%(ctx)s] %(message)s",
-            filename=args.log_file,
+            format="[%(asctime)s] %(levelname)-8s - %(name)s - %(ctx)s%(message)s",
+            filename=log_file,
             filemode="w",
         )
-        # define a Handler which writes messages of log_level or higher to the sys.stderr
+        # define a Handler which writes messages of log_level
+        # or higher to the sys.stderr
         console = logging.StreamHandler()
         console.setLevel(log_level)
         # set a format which is simpler for console use
         formatter = logging.Formatter(
-            "[%(asctime)s] - %(levelname)-8s - [%(ctx)s] %(message)s"
+            "[%(asctime)s] %(levelname)-8s - %(ctx)s%(message)s",
         )
         # tell the handler to use this format
         console.setFormatter(formatter)
         # add the handler to the root logger
-        logging.getLogger("").addHandler(console)
+        logging.root.addHandler(console)
     else:
         logging.basicConfig(
-            level=getattr(logging, args.log_level),
-            format="[%(asctime)s] - %(levelname)-8s - [%(ctx)s] %(message)s",
+            level=log_level,
+            format="[%(asctime)s] %(levelname)-8s - %(ctx)s%(message)s",
         )
-    # set a filter to add context information
-    logging.getLogger("").addFilter(ContextFilter("main"))
+    for h in logging.root.handlers:
+        h.addFilter(ContextFilter())
+
+
+def entrypoint(argv: Optional[Sequence[str]] = None) -> int:
+    parser = get_parser()
+    args = parser.parse_args(argv)
+    setup_logging(args.log_file, args.log_level)
+    begin = datetime.now()
 
     # unstream should be installed in the PATH or specified on the CLI with --unstream-path
     unstream_cmd = which("unstream")
@@ -157,7 +171,7 @@ def main():
             logging.critical(
                 'Missing tool "unstream" in PATH, please provide the path to unstream binary with --unstream-path'
             )
-            sys.exit(-1)
+            return -1
         else:
             unstream_cmd = Path(unstream_cmd)  # type: ignore[assignment]
     # args.unstream overrides unstream_cmd if it is a valid file
@@ -170,18 +184,30 @@ def main():
         )
         args.method = "python"
 
-    # Build the list of encrypted archives from the input paths given on the CLI. Directories are recursively searched
-    archives_list = list()
+    # Build the list of encrypted archives and the corresponding output path from the input paths given on the CLI.
+    # Directories are recursively searched.
+    output_dir = Path(args.output_dir)
+    archives_list: List[Dict[str, Path]] = list()
     for path in args.input:
         if path.is_file():
-            archives_list.append(path)
+            archives_list.append(
+                {"input": path, "output": (output_dir / path.stem).resolve()}
+            )
         elif path.is_dir():
-            archives_list += list(path.rglob("*.p7b"))
+            for subpath in path.rglob("*.p7b"):
+                archives_list.append(
+                    {
+                        "input": subpath,
+                        "output": (
+                            output_dir / subpath.relative_to(path).parent / subpath.stem
+                        ).resolve(),
+                    }
+                )
     if len(archives_list) == 0:
         logging.info(
             "No encrypted archives could be found in input path(s), nothing to do."
         )
-        sys.exit(0)
+        return 0
     logging.info(
         "Decrypting %d archives into %s using private key %s",
         len(archives_list),
@@ -189,20 +215,20 @@ def main():
         args.key,
     )
 
-    Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
     with multiprocessing.Pool(args.jobs) as pool:
         results = pool.starmap(
             decrypt_archive,
             [
                 (
-                    f,
+                    a["input"],
                     Path(args.key),
-                    (Path(args.output_dir) / f.stem).resolve(),
+                    a["output"],
                     unstream_cmd,
                     args.method,
                     args.force,
                 )
-                for f in archives_list
+                for a in archives_list
             ],
         )
 
@@ -214,3 +240,4 @@ def main():
         results.count(False),
         results.count(True),
     )
+    return 0
